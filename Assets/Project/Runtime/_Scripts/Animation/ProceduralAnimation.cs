@@ -10,45 +10,90 @@ public class ProceduralAnimation : MonoBehaviour
     [SerializeField] private float stepHeight = 0.1f;
     [SerializeField] private AnimationCurve stepCurve;
     [SerializeField] private float stepDuration = 0.5f;
-    
-    [SerializeField] private Transform[] footTransforms;
-    [SerializeField] private Transform[] footTargets;
+
+    [Serializable]
+    private class Foot
+    {
+        public Transform footTransform;
+        public Transform targetTransform;
+        internal Vector3 Position => footTransform.position;
+        internal Vector3 PreviousPosition;
+        internal Vector3 TargetPosition => targetTransform.position;
+        internal float stepProgress = 0f;
+    }
+
+    [SerializeField] private Foot[] feet;
 
 
     private void Awake()
     {
         CheckTransformArray();
-    }
-    
-    
-    
-    // Start is called before the first frame update
-    void Start()
-    {
         
+        foreach (var foot in feet)
+        {
+            foot.PreviousPosition = foot.Position;
+        }
     }
 
-    // Update is called once per frame
-    void Update()
+    private void FixedUpdate()
     {
-        
+        foreach (var foot in feet)
+        {
+            // Introduced Variables to reduce the amount of calls to the transform
+            Vector3 targetPosition = foot.TargetPosition;
+            Vector3 footPosition = foot.Position;
+            
+            // Calculate the distance between foot and target
+            float distance = Vector3.Distance(footPosition, targetPosition);
+
+            if (distance > stepDistance)
+            {
+                foot.PreviousPosition = targetPosition;
+                foot.footTransform.position = Vector3.Lerp(footPosition, targetPosition, stepCurve.Evaluate(foot.stepProgress));
+                foot.stepProgress += Time.deltaTime / stepDuration;
+            } else
+            {
+                foot.footTransform.position = foot.PreviousPosition;
+                foot.stepProgress = 0f;
+            }
+        }
     }
+
+    // Fix Leg to the ground
+    
+    
+    // Raycast from target point to adjust it to the ground
+    
+    
+    // Check Distance from the target point
+    
+    
+    // Move leg to the target when distance is greater than stepDistance
+    
+    
+    // Only move leg when opposite leg is on the ground
+    
+    
+    // Position the body based of the foot positions + offset rotated to the average angle of the feet
     
     private void OnDrawGizmos()
     {
         CheckTransformArray();
 
-        foreach (var transform in footTargets)
+        foreach (var foot in feet)
         {
-            Gizmos.color = Color.white;
-            Gizmos.DrawWireSphere(transform.position, stepDistance);
-        }
-        
-        for (int i = 0; i < footTransforms.Length; i++)
-        {
-            //calculate the distance between two vectors
-            float distance = Vector3.Distance(footTransforms[i].position, footTargets[i].position);
+            // Introduced Variables to reduce the amount of calls to the transform
+            Vector3 targetPosition = foot.TargetPosition;
+            Vector3 footPosition = foot.Position;
             
+            // Draw the target position and it's size
+            Gizmos.color = Color.white;
+            Gizmos.DrawWireSphere(targetPosition, stepDistance);
+            
+            // Calculate the distance between foot and target
+            float distance = Vector3.Distance(footPosition, targetPosition);
+            
+            // Colour the distance between foot and target green if it's less than stepDistance
             if (distance > stepDistance)
             {
                 Gizmos.color = Color.red;
@@ -57,8 +102,9 @@ public class ProceduralAnimation : MonoBehaviour
             {
                 Gizmos.color = Color.green;
             }
-
-            Gizmos.DrawLine(footTransforms[i].position, footTargets[i].position);
+            
+            // Draw the distance between foot and target
+            Gizmos.DrawLine(footPosition, targetPosition);
         }
     }
     
@@ -67,9 +113,12 @@ public class ProceduralAnimation : MonoBehaviour
     /// </summary>
     private void CheckTransformArray()
     {
-        if (footTransforms.Length != footTargets.Length)
+        foreach (var foot in feet)
         {
-            throw new Exception("Foot transforms and targets must be the same length");
+            if (foot.footTransform == null || foot.targetTransform == null)
+            {
+                throw new Exception("Foot Transform or Target Transform for element: " + foot +" is null");
+            }
         }
     }
     

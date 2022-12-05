@@ -1739,16 +1739,15 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   stepDuration: 0.5
-  footTransforms:
-  - {fileID: 1414592658399611261}
-  - {fileID: 4079090791066071612}
-  - {fileID: 6360394066095805858}
-  - {fileID: 7771903155380118422}
-  footTargets:
-  - {fileID: 1511632125}
-  - {fileID: 212342463}
-  - {fileID: 996377399}
-  - {fileID: 743698601}
+  feet:
+  - footTransform: {fileID: 1414592658399611261}
+    targetTransform: {fileID: 1511632125}
+  - footTransform: {fileID: 4079090791066071612}
+    targetTransform: {fileID: 212342463}
+  - footTransform: {fileID: 6360394066095805858}
+    targetTransform: {fileID: 996377399}
+  - footTransform: {fileID: 7771903155380118422}
+    targetTransform: {fileID: 743698601}
 --- !u!23 &2163726391872306825
 MeshRenderer:
   m_ObjectHideFlags: 0
