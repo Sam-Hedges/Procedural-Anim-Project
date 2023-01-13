@@ -27,6 +27,8 @@ public class ProceduralAnimation : MonoBehaviour
         internal float stepProgress = 0f;
         internal bool isStepping = false;
         
+        internal SecondOrderDynamics dynamics;
+        
         internal void UpdatePreviousPosition()
         {
             PreviousPosition = Position;
@@ -40,7 +42,9 @@ public class ProceduralAnimation : MonoBehaviour
     // It's used in this case to prevent a nested-class array, overlapping-inspector bug
     [SerializeField] [NonReorderable] private Foot[] feet;
 
-    
+    public float frequency = 1;
+    public float dampingCoefficient;
+    public float initialResponse;
     
 
     private float raycastRange = 1f;
@@ -61,6 +65,8 @@ public class ProceduralAnimation : MonoBehaviour
         foreach (var foot in feet)
         {
             foot.PreviousPosition = foot.Position;
+            foot.dynamics = gameObject.AddComponent<SecondOrderDynamics>();
+            foot.dynamics.InitSecondOrderDynamics(frequency, dampingCoefficient, initialResponse, foot.Position);
         }
     }
 
@@ -110,8 +116,9 @@ public class ProceduralAnimation : MonoBehaviour
         {
             foot.stepProgress += Time.deltaTime / stepDuration;
             float height = stepCurveVertical.Evaluate(foot.stepProgress) * stepHeight;
-            Vector3 newPos = Vector3.Lerp(startPos, targetPosition, foot.stepProgress);
-            foot.footTransform.position = new Vector3(newPos.x, height, newPos.z);
+            float horizontal = stepCurveHorizontal.Evaluate(foot.stepProgress);
+            Vector3 newPos = Vector3.Lerp(startPos, targetPosition, horizontal);
+            foot.footTransform.position = foot.dynamics.UpdatePosition(Time.fixedDeltaTime, new Vector3(newPos.x, height, newPos.z), Vector3.zero);
             yield return new WaitForFixedUpdate(); // Waits until next physics step to continue
         }
         
