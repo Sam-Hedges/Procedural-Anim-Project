@@ -8,15 +8,20 @@ public class ProceduralAnimation : MonoBehaviour
     
     [SerializeField] private float stepDistance = 0.1f;
     [SerializeField] private float stepHeight = 0.1f;
-    [SerializeField] private AnimationCurve stepCurve;
+    [SerializeField] private AnimationCurve stepCurveVertical;
+    [SerializeField] private AnimationCurve stepCurveHorizontal;
     [SerializeField] private float stepDuration = 0.5f;
+    [SerializeField] private float minLegStretchDistance = 0.1f;
+    [SerializeField] private float maxLegStretchDistance = 0.5f;
 
     [Serializable] 
     private class Foot
     {
+        public Transform rootLegTransform;
         public Transform footTransform;
         public Transform targetTransform;
         internal Vector3 Position => footTransform.position;
+        internal Vector3 LegPosition => rootLegTransform.position;
         internal Vector3 PreviousPosition;
         internal Vector3 TargetPosition => targetTransform.position;
         internal float stepProgress = 0f;
@@ -73,14 +78,16 @@ public class ProceduralAnimation : MonoBehaviour
             // Introduced Variables to reduce the amount of calls to the transform
             Vector3 targetPosition = foot.TargetPosition;
             Vector3 footPosition = foot.Position;
+            Vector3 legPosition = foot.LegPosition;
             
             // Calculate the distance between foot and target
-            float distance = Vector3.Distance(footPosition, targetPosition);
+            float footToTargetDistance = Vector3.Distance(footPosition, targetPosition);
+            float legStretchDistance = Vector3.Distance(footPosition, legPosition);
 
-            if (distance > stepDistance)
+            if (footToTargetDistance > stepDistance || legStretchDistance > maxLegStretchDistance || legStretchDistance < minLegStretchDistance)
             {
                 // foot.PreviousPosition = targetPosition;
-                // foot.footTransform.position = Vector3.Lerp(footPosition, targetPosition, stepCurve.Evaluate(foot.stepProgress));
+                // foot.footTransform.position = Vector3.Lerp(footPosition, targetPosition, stepCurveVertical.Evaluate(foot.stepProgress));
                 // foot.stepProgress += Time.deltaTime / stepDuration;
 
                 StartCoroutine(PerformStep(foot, targetPosition));
@@ -102,7 +109,7 @@ public class ProceduralAnimation : MonoBehaviour
         while (foot.stepProgress < 1f)
         {
             foot.stepProgress += Time.deltaTime / stepDuration;
-            float height = stepCurve.Evaluate(foot.stepProgress) * stepHeight;
+            float height = stepCurveVertical.Evaluate(foot.stepProgress) * stepHeight;
             Vector3 newPos = Vector3.Lerp(startPos, targetPosition, foot.stepProgress);
             foot.footTransform.position = new Vector3(newPos.x, height, newPos.z);
             yield return new WaitForFixedUpdate(); // Waits until next physics step to continue
@@ -142,6 +149,7 @@ public class ProceduralAnimation : MonoBehaviour
             // Introduced Variables to reduce the amount of calls to the transform
             Vector3 targetPosition = foot.TargetPosition;
             Vector3 footPosition = foot.Position;
+            Vector3 legPosition = foot.LegPosition;
             
             // Draw the target position and it's size
             Gizmos.color = Color.white;
@@ -169,6 +177,28 @@ public class ProceduralAnimation : MonoBehaviour
             Gizmos.DrawLine(footPosition, targetPosition);
             
             #endregion
+            
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawRay(legPosition, (footPosition - legPosition).normalized * maxLegStretchDistance);
+            
+            #region LineBetweenFootAndLeg
+            
+            float legStretchDistance = Vector3.Distance(footPosition, legPosition);
+            
+            if (legStretchDistance > maxLegStretchDistance || legStretchDistance < minLegStretchDistance)
+            {
+                Gizmos.color = Color.red;
+            } else
+            {
+                Gizmos.color = Color.green;
+            }
+
+            Gizmos.DrawLine(footPosition, legPosition);
+            
+            #endregion
+            
+            Gizmos.color = Color.blue;
+            Gizmos.DrawRay(legPosition, (footPosition - legPosition).normalized * minLegStretchDistance);
         }
     }
     
