@@ -10,7 +10,7 @@ public class SecondOrderDynamicsDemo : MonoBehaviour
     public float frequency = 1;
     public float dampingCoefficient;
     public float initialResponse;
-    
+
     private Vector3 xp; // previous input
     private Vector3 y, yd; // state variables
     private float k1, k2, k3; // dynamics constants
@@ -29,32 +29,40 @@ public class SecondOrderDynamicsDemo : MonoBehaviour
         yd = Vector3.zero;
     }
 
-    private void Awake() {
+    private void Awake()
+    {
         InitSecondOrderDynamics(frequency, dampingCoefficient, initialResponse, transform.position);
     }
 
-    private void FixedUpdate() {
+    private void FixedUpdate()
+    {
         target.position = UpdatePosition(Time.fixedDeltaTime, transform.position, Vector3.zero);
     }
 
     public Vector3 UpdatePosition(float deltaTime, Vector3 x, Vector3 xd)
     {
-        if (xd == Vector3.zero) { // estimate velocity
+        if (xd == Vector3.zero)
+        {
+            // estimate velocity
             xd = (x - xp) / deltaTime;
             xp = x;
         }
+
         int iterations = (int)Mathf.Ceil(deltaTime / T_crit); // take extra iterations if T > T_crit
         deltaTime /= iterations; // each iteration now has a smaller time step
-        for (int i = 0; i < iterations; i++) {
+        for (int i = 0; i < iterations; i++)
+        {
             y += deltaTime * yd; // integrate position by velocity
-            yd += deltaTime * (x + k3*xd - y - k1 * yd) / k2; // integrate velocity by acceleration
+            yd += deltaTime * (x + k3 * xd - y - k1 * yd) / k2; // integrate velocity by acceleration
         }
+
         return y;
     }
-    
+
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.green;
         Gizmos.DrawLine(transform.position, target.position);
     }
+
 }

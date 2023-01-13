@@ -65,8 +65,7 @@ public class ProceduralAnimation : MonoBehaviour
         foreach (var foot in feet)
         {
             foot.PreviousPosition = foot.Position;
-            foot.dynamics = gameObject.AddComponent<SecondOrderDynamics>();
-            foot.dynamics.InitSecondOrderDynamics(frequency, dampingCoefficient, initialResponse, foot.Position);
+            foot.dynamics = new SecondOrderDynamics(frequency, dampingCoefficient, initialResponse, foot.Position);
         }
     }
 
