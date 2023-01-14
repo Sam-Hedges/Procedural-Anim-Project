@@ -99,10 +99,10 @@ public class EditorGraph
 		// Default graph colors
 		Colors = new GraphColors
 		{
-			Background = new Color(0.15f, 0.15f, 0.15f, 1f),
-			Outline = new Color(0f, 0f, 0f, 1f),
+			Background = new Color(0.15f, 0.15f, 0.15f, 0f),
+			Outline = new Color(0f, 0f, 0f, 0f),
 			GridLine = new Color(0.5f, 0.5f, 0.5f),
-			Function = Color.red,
+			Function = Color.cyan,
 			CustomLine = Color.white
 		};
 	}
@@ -146,6 +146,14 @@ public class EditorGraph
 	public void Draw()
 	{
 		Draw(128, 80);
+	}
+	
+	/// <summary>
+	/// Draw the graph with the default size (128x80).
+	/// </summary>
+	public void DrawSOD(SecondOrderDynamics dynamics)
+	{
+		DrawSOD(128, 80, dynamics);
 	}
 
 	/// <summary>
@@ -260,9 +268,131 @@ public class EditorGraph
 				Handles.color = func.Color;
 				Handles.DrawAAPolyLine(2.0f, vcount, curveVertices);
 			}
+			
 		}
 	}
+	
+	/// <summary>
+	/// Draw the graph with the specified minimum size.
+	/// </summary>
+	/// <param name="width">Minimum width of the graph in pixels.</param>
+	/// <param name="height">Minimum height of the graph in pixels.</param>
+	public void DrawSOD(float width, float height, SecondOrderDynamics dynamics)
+	{
+		GUILayout.Space(20f);
 
+		// Title
+		using (new GUILayout.HorizontalScope())
+		{
+			GUILayout.Space(EditorGUI.indentLevel * 15f);
+			rect = GUILayoutUtility.GetRect(width, height);
+		}
+
+		// Handle MouseDown events
+		if (Event.current.type == EventType.MouseDown)
+		{
+			if (rect.Contains(Event.current.mousePosition))
+			{
+				Vector2 mousePos = (Event.current.mousePosition - rect.position);
+				Vector2 unitPos = new Vector2(
+					mousePos.x / rect.width * rangeX + minX,
+					(1f - (mousePos.y / rect.height)) * rangeY + minY
+				);
+
+				foreach (var e in clickEvents)
+					e(unitPos.x, unitPos.y);
+			}
+		}
+
+		// Only continue if we're repainting the graph
+		if (Event.current.type != EventType.Repaint)
+			return;
+
+		// Background
+		DrawRect(minX, minY, maxX, maxY, Colors.Background, Colors.Outline);
+
+		// Vertical helper lines
+		if (GridLinesX > 0)
+		{
+			float multiplier = 1;
+			while ((rangeX / (GridLinesX * multiplier)) > (rect.width / 2f))
+				multiplier *= 2;
+
+			for (float x = minX; x <= maxX; x += GridLinesX * multiplier)
+				DrawLine(x, minY, x, maxY, Colors.GridLine, 1);
+		}
+		// Horizontal helper lines
+		if (GridLinesY > 0)
+		{
+			float multiplier = 1;
+			while ((rangeY / (GridLinesY * multiplier)) > (rect.height / 2f))
+				multiplier *= 2;
+
+			for (float y = minY; y <= maxY; y += GridLinesY * multiplier)
+				DrawLine(minX, y, maxX, y, Colors.GridLine, 1);
+		}
+
+		// Vertical lines
+		foreach (var line in linesX)
+		{
+			DrawLine(line.Position, minY, line.Position, maxY, line.Color, 2);
+		}
+		// Horizontal lines
+		foreach (var line in linesY)
+		{
+			DrawLine(minX, line.Position, maxX, line.Position, line.Color, 2);
+		}
+
+		// Check if the vertex buffer is of the correct size
+		int res = (GraphResolution <= 0 ? 48 : GraphResolution);
+		if ((curveVertices == null) || (curveVertices.Length != res))
+			curveVertices = new Vector3[res];
+
+		// Evaluate all functions
+		foreach (var func in functions)
+		{
+			var vcount = 0;
+			while (vcount < res)
+			{
+				var x = rangeX * vcount / (res - 1);
+				var y = 1f;
+				Vector3 xy = dynamics.UpdatePosition(Time.fixedDeltaTime, new Vector3(x, y, 0), Vector3.zero);
+				x = xy.x;
+				y = xy.y;
+				
+				if ((y >= minY) && (y <= maxY))
+				{
+					curveVertices[vcount++] = UnitToGraph(x, y);
+				}
+				else
+				{
+					if (vcount > 1)
+					{
+						// Extend the last segment to the top edge of the rect.
+						var v1 = curveVertices[vcount - 2];
+						var v2 = curveVertices[vcount - 1];
+						var clip = (rect.y - v1.y) / (v2.y - v1.y);
+						curveVertices[vcount - 1] = v1 + (v2 - v1) * clip;
+					}
+					break;
+				}
+			}
+
+			if (vcount > 1)
+			{
+				Handles.color = func.Color;
+				Handles.DrawAAPolyLine(2.0f, vcount, curveVertices);
+			}
+			
+			//Handles.Label(new Vector2(minX - 0.1f,line.Position), "X", EditorStyles.label);
+			//Handles.Label(new Vector2(line.Position, minY - 0.1f), "Y", EditorStyles.label);
+			Handles.Label(UnitToGraph(-1, 0), "0");
+		}
+		
+		
+		GUILayout.Space(20f);
+	}
+	
 	/// <summary>
 	/// Add a custom function to the graph using the default color.
 	/// </summary>

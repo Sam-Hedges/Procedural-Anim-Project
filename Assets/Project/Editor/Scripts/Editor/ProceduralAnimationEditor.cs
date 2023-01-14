@@ -25,14 +25,14 @@ public class ProceduralAnimationEditor : Editor
         
         SecondOrderDynamics secondOrderDynamics = new SecondOrderDynamics(_frequency.floatValue, _dampingCoefficient.floatValue, _initialResponse.floatValue, Vector3.zero);
 
-        EditorGraph graph = new EditorGraph(0, 0, 2, 1, "Step Response", 100);
+        EditorGraph graph = new EditorGraph(0, 0, 2, 2, "Step Response", 1000);
         graph.GridLinesX = 0.5f;
         graph.GridLinesY = 0.5f;
-        graph.AddFunction(x => secondOrderDynamics.UpdatePosition(Time.fixedDeltaTime, new Vector3(x, x, x), Vector3.zero).x, Color.cyan);
+        graph.AddFunction(x => x, Color.cyan);
         graph.AddLineY(0, Color.white);
         graph.AddLineY(1, Color.green);
         graph.AddLineX(0, Color.white);
         graph.AddClickEvent((x, y) => Debug.LogFormat("You clicked at {0};{1}.", x, y));
-        graph.Draw();
+        graph.DrawSOD(128, 128, secondOrderDynamics);
     }
 }
