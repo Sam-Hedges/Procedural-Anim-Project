@@ -69,6 +69,8 @@ public class EditorGraph
 	/// </summary>
 	public int GraphResolution = 48;
 
+	public Vector2 labelPosition = new Vector2(0, 0);
+	
 	/// <summary>
 	/// Constructor.
 	/// </summary>
@@ -386,11 +388,11 @@ public class EditorGraph
 			
 			//Handles.Label(new Vector2(minX - 0.1f,line.Position), "X", EditorStyles.label);
 			//Handles.Label(new Vector2(line.Position, minY - 0.1f), "Y", EditorStyles.label);
-			Handles.Label(UnitToGraph(-1, 0), "0");
+			Handles.Label(UnitToGraphUnlocked(labelPosition.x, labelPosition.y), "0");
 		}
 		
 		
-		GUILayout.Space(20f);
+		//GUILayout.Space(20f); 
 	}
 	
 	/// <summary>
@@ -532,16 +534,19 @@ public class EditorGraph
 
 		return new Vector3(x, y, 0);
 	}
-
-	float UnitToGraphX(float x)
+	
+	Vector3 UnitToGraphUnlocked(float x, float y)
 	{
-		return Mathf.Lerp(rect.x, rect.xMax, (x - minX) / rangeX);
+		x = ULerp(rect.x, rect.xMax, (x - minX) / rangeX);
+		y = ULerp(rect.yMax, rect.y, (y - minY) / rangeY);
+
+		//Debug.Log("x: " + rect.x + " xMax: " + rect.xMax);
+		//Debug.Log("y: " + rect.y + " yMax: " + rect.yMax);
+		
+		return new Vector3(x, y, 0);
 	}
 
-	float UnitToGraphY(float y)
-	{
-		return Mathf.Lerp(rect.yMax, rect.y, (y - minY) / rangeY);
-	}
+	private float ULerp(float a, float b, float t) => a + (b - a) * t;
 
 	void DrawLine(float x1, float y1, float x2, float y2, Color color, float width)
 	{

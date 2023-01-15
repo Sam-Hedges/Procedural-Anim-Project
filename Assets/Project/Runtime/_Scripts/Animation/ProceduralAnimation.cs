@@ -45,7 +45,7 @@ public class ProceduralAnimation : MonoBehaviour
     public float frequency = 1;
     public float dampingCoefficient;
     public float initialResponse;
-    
+    public Vector2 labelPosition;
 
     private float raycastRange = 1f;
     private Vector3 lastBodyUp;
