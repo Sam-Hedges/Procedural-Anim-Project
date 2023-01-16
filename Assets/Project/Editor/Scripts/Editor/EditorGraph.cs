@@ -37,6 +37,7 @@
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
+using Codice.CM.Common;
 
 /// <summary>
 /// Draw graphs in the inspector.
@@ -68,8 +69,6 @@ public class EditorGraph
 	/// Resolution of the graph -- how many points are evaluated and rendered for custom functions.
 	/// </summary>
 	public int GraphResolution = 48;
-
-	public Vector2 labelPosition = new Vector2(0, 0);
 	
 	/// <summary>
 	/// Constructor.
@@ -141,145 +140,13 @@ public class EditorGraph
 	}
 
 	#region Public functions
-
-	/// <summary>
-	/// Draw the graph with the default size (128x80).
-	/// </summary>
-	public void Draw()
-	{
-		Draw(128, 80);
-	}
-	
-	/// <summary>
-	/// Draw the graph with the default size (128x80).
-	/// </summary>
-	public void DrawSOD(SecondOrderDynamics dynamics)
-	{
-		DrawSOD(128, 80, dynamics);
-	}
-
-	/// <summary>
-	/// Draw the graph with the specified minimum size.
-	/// </summary>
-	/// <param name="width">Minimum width of the graph in pixels.</param>
-	/// <param name="height">Minimum height of the graph in pixels.</param>
-	public void Draw(float width, float height)
-	{
-		// Get rect
-		if (!string.IsNullOrEmpty(Title))
-		{
-			using (new GUILayout.HorizontalScope(EditorStyles.toolbar))
-				GUILayout.Label(Title);
-		}
-
-		// Title
-		using (new GUILayout.HorizontalScope())
-		{
-			GUILayout.Space(EditorGUI.indentLevel * 15f);
-			rect = GUILayoutUtility.GetRect(width, height);
-		}
-
-		// Handle MouseDown events
-		if (Event.current.type == EventType.MouseDown)
-		{
-			if (rect.Contains(Event.current.mousePosition))
-			{
-				Vector2 mousePos = (Event.current.mousePosition - rect.position);
-				Vector2 unitPos = new Vector2(
-					mousePos.x / rect.width * rangeX + minX,
-					(1f - (mousePos.y / rect.height)) * rangeY + minY
-				);
-
-				foreach (var e in clickEvents)
-					e(unitPos.x, unitPos.y);
-			}
-		}
-
-		// Only continue if we're repainting the graph
-		if (Event.current.type != EventType.Repaint)
-			return;
-
-		// Background
-		DrawRect(minX, minY, maxX, maxY, Colors.Background, Colors.Outline);
-
-		// Vertical helper lines
-		if (GridLinesX > 0)
-		{
-			float multiplier = 1;
-			while ((rangeX / (GridLinesX * multiplier)) > (rect.width / 2f))
-				multiplier *= 2;
-
-			for (float x = minX; x <= maxX; x += GridLinesX * multiplier)
-				DrawLine(x, minY, x, maxY, Colors.GridLine, 1);
-		}
-		// Horizontal helper lines
-		if (GridLinesY > 0)
-		{
-			float multiplier = 1;
-			while ((rangeY / (GridLinesY * multiplier)) > (rect.height / 2f))
-				multiplier *= 2;
-
-			for (float y = minY; y <= maxY; y += GridLinesY * multiplier)
-				DrawLine(minX, y, maxX, y, Colors.GridLine, 1);
-		}
-
-		// Vertical lines
-		foreach (var line in linesX)
-		{
-			DrawLine(line.Position, minY, line.Position, maxY, line.Color, 2);
-		}
-		// Horizontal lines
-		foreach (var line in linesY)
-		{
-			DrawLine(minX, line.Position, maxX, line.Position, line.Color, 2);
-		}
-
-		// Check if the vertex buffer is of the correct size
-		int res = (GraphResolution <= 0 ? 48 : GraphResolution);
-		if ((curveVertices == null) || (curveVertices.Length != res))
-			curveVertices = new Vector3[res];
-
-		// Evaluate all functions
-		foreach (var func in functions)
-		{
-			var vcount = 0;
-			while (vcount < res)
-			{
-				var x = this.rangeX * vcount / (res - 1);
-				var y = func.Function(x);
-				if ((y >= minY) && (y <= maxY))
-				{
-					curveVertices[vcount++] = UnitToGraph(x, y);
-				}
-				else
-				{
-					if (vcount > 1)
-					{
-						// Extend the last segment to the top edge of the rect.
-						var v1 = curveVertices[vcount - 2];
-						var v2 = curveVertices[vcount - 1];
-						var clip = (rect.y - v1.y) / (v2.y - v1.y);
-						curveVertices[vcount - 1] = v1 + (v2 - v1) * clip;
-					}
-					break;
-				}
-			}
-
-			if (vcount > 1)
-			{
-				Handles.color = func.Color;
-				Handles.DrawAAPolyLine(2.0f, vcount, curveVertices);
-			}
-			
-		}
-	}
 	
 	/// <summary>
 	/// Draw the graph with the specified minimum size.
 	/// </summary>
 	/// <param name="width">Minimum width of the graph in pixels.</param>
 	/// <param name="height">Minimum height of the graph in pixels.</param>
-	public void DrawSOD(float width, float height, SecondOrderDynamics dynamics)
+	public void DrawSOD(float width, float height, float frequency, float dampingCoefficient, float initialResponse)
 	{
 		GUILayout.Space(20f);
 
@@ -310,6 +177,46 @@ public class EditorGraph
 		if (Event.current.type != EventType.Repaint)
 			return;
 
+		// Check if the vertex buffer is of the correct size
+		int resolution = (GraphResolution <= 0 ? 48 : GraphResolution);
+		if ((curveVertices == null) || (curveVertices.Length != resolution))
+			curveVertices = new Vector3[resolution];
+		
+		// Evaluate the Second Order Dynamic Step Response
+		var vertexCount = 0;
+		SecondOrderDynamics dynamicsBounds = new SecondOrderDynamics(frequency, dampingCoefficient, initialResponse, Vector3.zero);
+
+		while (vertexCount < resolution) {
+			
+			var targetPosition = new Vector3(rangeX * vertexCount / (resolution - 1), 1f, 0);
+			Vector3 xy = dynamicsBounds.UpdatePosition(Time.fixedDeltaTime / (resolution / 100), targetPosition, Vector3.zero);
+			var y = xy.y;
+			
+			if (y < minY) {
+				minY = y;
+			} else if (y > maxY) {
+				maxY = y;
+			}
+			
+			rangeY = maxY - minY;
+
+			vertexCount++;
+		}
+		
+		vertexCount = 0;
+		SecondOrderDynamics dynamicsDrawn = new SecondOrderDynamics(frequency, dampingCoefficient, initialResponse, Vector3.zero);
+		
+		while (vertexCount < resolution) {
+			
+			var targetPosition = new Vector3(rangeX * vertexCount / (resolution - 1), 1f, 0);
+			Vector3 xy = dynamicsDrawn.UpdatePosition(Time.fixedDeltaTime / (resolution / 100), targetPosition, Vector3.zero);
+			var x = xy.x;
+			var y = xy.y;
+			
+			curveVertices[vertexCount++] = UnitToGraph(x, y);
+			
+		}
+
 		// Background
 		DrawRect(minX, minY, maxX, maxY, Colors.Background, Colors.Outline);
 
@@ -320,8 +227,20 @@ public class EditorGraph
 			while ((rangeX / (GridLinesX * multiplier)) > (rect.width / 2f))
 				multiplier *= 2;
 
-			for (float x = minX; x <= maxX; x += GridLinesX * multiplier)
+			for (float x = minX; x <= maxX; x += GridLinesX * multiplier) {
+				
 				DrawLine(x, minY, x, maxY, Colors.GridLine, 1);
+				
+				if (x == 0) { continue;}
+				
+				// Get Label position relative to the graph and offset it to be left of the line
+				Vector3 labelPosition = UnitToGraphUnlocked(x, minY);
+				labelPosition.y += 10f;
+				labelPosition.x -= 7.5f;
+			
+				// Draw the label
+				Handles.Label(labelPosition, x.ToString());
+			}
 		}
 		// Horizontal helper lines
 		if (GridLinesY > 0)
@@ -342,57 +261,26 @@ public class EditorGraph
 		// Horizontal lines
 		foreach (var line in linesY)
 		{
+			// Draw the horizontal line
 			DrawLine(minX, line.Position, maxX, line.Position, line.Color, 2);
+			
+			// Get Label position relative to the graph and offset it to be left of the line
+			Vector3 labelPosition = UnitToGraphUnlocked(minX, line.Position);
+			labelPosition.x -= 15f;
+			
+			// Draw the label
+			Handles.Label(labelPosition, line.Position.ToString());
 		}
-
-		// Check if the vertex buffer is of the correct size
-		int res = (GraphResolution <= 0 ? 48 : GraphResolution);
-		if ((curveVertices == null) || (curveVertices.Length != res))
-			curveVertices = new Vector3[res];
 
 		// Evaluate all functions
 		foreach (var func in functions)
 		{
-			var vcount = 0;
-			while (vcount < res)
-			{
-				var x = rangeX * vcount / (res - 1);
-				var y = 1f;
-				Vector3 xy = dynamics.UpdatePosition(Time.fixedDeltaTime, new Vector3(x, y, 0), Vector3.zero);
-				x = xy.x;
-				y = xy.y;
-				
-				if ((y >= minY) && (y <= maxY))
-				{
-					curveVertices[vcount++] = UnitToGraph(x, y);
-				}
-				else
-				{
-					if (vcount > 1)
-					{
-						// Extend the last segment to the top edge of the rect.
-						var v1 = curveVertices[vcount - 2];
-						var v2 = curveVertices[vcount - 1];
-						var clip = (rect.y - v1.y) / (v2.y - v1.y);
-						curveVertices[vcount - 1] = v1 + (v2 - v1) * clip;
-					}
-					break;
-				}
-			}
-
-			if (vcount > 1)
+			if (vertexCount > 1)
 			{
 				Handles.color = func.Color;
-				Handles.DrawAAPolyLine(2.0f, vcount, curveVertices);
+				Handles.DrawAAPolyLine(2.0f, vertexCount, curveVertices);
 			}
-			
-			//Handles.Label(new Vector2(minX - 0.1f,line.Position), "X", EditorStyles.label);
-			//Handles.Label(new Vector2(line.Position, minY - 0.1f), "Y", EditorStyles.label);
-			Handles.Label(UnitToGraphUnlocked(labelPosition.x, labelPosition.y), "0");
 		}
-		
-		
-		//GUILayout.Space(20f); 
 	}
 	
 	/// <summary>
@@ -558,10 +446,10 @@ public class EditorGraph
 
 	void DrawRect(float x1, float y1, float x2, float y2, Color fill, Color line)
 	{
-		rectVertices[0] = UnitToGraph(x1, y1);
-		rectVertices[1] = UnitToGraph(x2, y1);
-		rectVertices[2] = UnitToGraph(x2, y2);
-		rectVertices[3] = UnitToGraph(x1, y2);
+		rectVertices[0] = UnitToGraphUnlocked(x1, y1);
+		rectVertices[1] = UnitToGraphUnlocked(x2, y1);
+		rectVertices[2] = UnitToGraphUnlocked(x2, y2);
+		rectVertices[3] = UnitToGraphUnlocked(x1, y2);
 
 		Handles.DrawSolidRectangleWithOutline(rectVertices, fill, line);
 	}

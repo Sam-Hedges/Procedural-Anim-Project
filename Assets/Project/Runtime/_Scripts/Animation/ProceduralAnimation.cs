@@ -42,10 +42,9 @@ public class ProceduralAnimation : MonoBehaviour
     // It's used in this case to prevent a nested-class array, overlapping-inspector bug
     [SerializeField] [NonReorderable] private Foot[] feet;
 
-    public float frequency = 1;
-    public float dampingCoefficient;
-    public float initialResponse;
-    public Vector2 labelPosition;
+    [Range(0, 15)] public float frequency = 1f;
+    [Range(0, 5)] public float dampingCoefficient = 0.5f;
+    [Range(-5, 5)] public float initialResponse = 2f;
 
     private float raycastRange = 1f;
     private Vector3 lastBodyUp;
