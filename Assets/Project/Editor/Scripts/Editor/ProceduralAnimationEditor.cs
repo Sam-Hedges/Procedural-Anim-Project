@@ -8,8 +8,8 @@ public class ProceduralAnimationEditor : Editor
     private SerializedProperty _dampingCoefficient;
     private SerializedProperty _initialResponse;
 
-    private Vector2 graphSize = new Vector2(128, 300);
-    private int resolution = 100;
+    private Vector2 graphSize = new Vector2(128, 200);
+    private int iterations = 100;
     
     private void OnEnable()
     {
@@ -27,10 +27,10 @@ public class ProceduralAnimationEditor : Editor
         serializedObject.Update();
 
         graphSize = EditorGUILayout.Vector2Field("graphSize", graphSize);
-        resolution = EditorGUILayout.IntField("resolution", resolution);
+        iterations = EditorGUILayout.IntField("iterations", iterations);
         
-        
-        EditorGraph graph = new EditorGraph(0, 0, 2, 1, "Step Response", resolution);
+        /*
+        EditorGraph graph = new EditorGraph(0, 0, 2, 1, "Step Response", iterations);
         graph.GridLinesX = 0.5f;
         graph.GridLinesY = 0.5f;
         graph.AddFunction(x => x, Color.cyan);
@@ -39,7 +39,11 @@ public class ProceduralAnimationEditor : Editor
         graph.AddLineX(0, Color.white);
         graph.AddClickEvent((x, y) => Debug.LogFormat("You clicked at {0};{1}.", x, y));
         graph.DrawSOD(graphSize.x, graphSize.y, _frequency.floatValue, _dampingCoefficient.floatValue, _initialResponse.floatValue);
+        */
         
-        GUILayout.Space(20f);
+        SecondOrderEditorGraph graph = new SecondOrderEditorGraph(0, 0, 2, 1, iterations);
+        graph.DrawGraph(graphSize.x, graphSize.y, _frequency.floatValue, _dampingCoefficient.floatValue, _initialResponse.floatValue);
+        
+        //GUILayout.Space(20f);
     }
 }

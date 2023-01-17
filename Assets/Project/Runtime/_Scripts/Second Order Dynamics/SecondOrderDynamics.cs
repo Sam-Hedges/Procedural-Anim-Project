@@ -1,37 +1,59 @@
+using System;
 using UnityEngine;
 
 public class SecondOrderDynamics
 {
-    private Vector3 xp; // previous input
-    private Vector3 y, yd; // state variables
-    private float k1, k2, k3; // dynamics constants
-    private float T_crit; // critical stable time step
+    // Previous input
+    private Vector3 _previousPosition;
+
+    // State variables
+    private Vector3 _position; 
+    private Vector3 _velocity;
+    
+    // dynamics constants
+    private readonly float _w;
+    private readonly float _z;
+    private readonly float _d;
+    private readonly float _k1;
+    private readonly float _k2;
+    private readonly float _k3;
 
     public SecondOrderDynamics(float frequency, float dampingCoefficient, float initialResponse, Vector3 initialPosition)
     {
         // compute constants
-        k1 = dampingCoefficient / (Mathf.PI * frequency);
-        k2 = 1 / ((2 * Mathf.PI * frequency) * (2 * Mathf.PI * frequency));
-        k3 = initialResponse * dampingCoefficient / (2 * Mathf.PI * frequency);
-        T_crit = 0.8f * (Mathf.Sqrt(4 * k2 + k1 * k1) - k1); // multiply by 0.8 to be safe
-        // initialize variables
-        xp = initialPosition;
-        y = initialPosition;
-        yd = Vector3.zero;
+        _w = 2 * Mathf.PI * frequency;
+        _z = dampingCoefficient;
+        _d = _w * Mathf.Sqrt(Mathf.Abs(dampingCoefficient * dampingCoefficient - 1)); 
+        _k1 =  dampingCoefficient / (Mathf.PI * frequency);
+        _k2 = 1 / (_w * _w);
+        _k3 = initialResponse * dampingCoefficient / _w;
+        // initialize-variables
+        _previousPosition = initialPosition;
+        _position  =  initialPosition; 
+        _velocity = Vector3.zero;
     }
 
     public Vector3 UpdatePosition(float deltaTime, Vector3 targetPosition, Vector3 velocity)
     {
-        if (velocity == Vector3.zero) { // estimate velocity
-            velocity = (targetPosition - xp) / deltaTime;
-            xp = targetPosition;
+        if (velocity == Vector3.zero){// estimate velocity
+            velocity = (targetPosition - _previousPosition) / deltaTime;
+            _previousPosition = targetPosition;
         }
-        int iterations = (int)Mathf.Ceil(deltaTime / T_crit); // take extra iterations if T > T_crit
-        deltaTime /= iterations; // each iteration now has a smaller time step
-        for (int i = 0; i < iterations; i++) {
-            y += deltaTime * yd; // integrate position by velocity
-            yd += deltaTime * (targetPosition + k3*velocity - y - k1 * yd) / k2; // integrate velocity by acceleration
+        float k1Stable;
+        float k2Stable;
+        if (_w * deltaTime < _z){// clamp k2 to guarantee stability without jitter
+            k1Stable = _k1;
+            k2Stable = Mathf.Max(_k2, deltaTime * deltaTime / 2 + deltaTime * _k1 / 2, deltaTime * _k1);
+        }else {// use pole matching when the system is very fast
+            float t1 = Mathf.Exp(-_z * _w * deltaTime);
+            float alpha = 2 * t1 * (_z <= 1 ? Mathf.Cos(deltaTime * _d) : (float)Math.Cosh(deltaTime * _d));
+            float beta = t1 * t1;
+            float t2 = deltaTime / (1 + beta - alpha);
+            k1Stable = (1 - beta) * t2;
+            k2Stable = deltaTime * t2;
         }
-        return y;
+        _position += deltaTime * _velocity; // integrate position by velocity
+        _velocity += deltaTime * (targetPosition + _k3 * velocity - _position - k1Stable * _velocity) / k2Stable; // integrate velocity by acceleration
+        return _position;
     }
 }

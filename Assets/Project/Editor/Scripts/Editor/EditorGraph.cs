@@ -82,9 +82,9 @@ public class EditorGraph
 	public EditorGraph(float _minX, float _minY, float _maxX, float _maxY, string _title = "", int _resolution = 48)
 	{
 		if (_minX >= _maxX)
-			throw new System.ArgumentException("Editor graph: minimum X value must be greater than maximum!", "_minX");
+			throw new System.ArgumentException("Editor graph: minimum X value cannot be greater than maximum!", "_minX");
 		if (_minY >= _maxY)
-			throw new System.ArgumentException("Editor graph: minimum Y value must be greater than maximum!", "_minY");
+			throw new System.ArgumentException("Editor graph: minimum Y value cannot be greater than maximum!", "_minY");
 
 		minX = _minX;
 		maxX = _maxX;

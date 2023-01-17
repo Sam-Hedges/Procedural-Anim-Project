@@ -7,7 +7,7 @@ using UnityEngine;
 ///     [EN](https://www.youtube.com/watch?v=KPoeNZZ6H4s)
 ///     [CN](https://www.bilibili.com/video/BV1wN4y1578b)
 /// </summary>
-public class SosDemo : MonoBehaviour
+public class SosDemo
 {
     // previous input
     private Vector3 _prevPos;
