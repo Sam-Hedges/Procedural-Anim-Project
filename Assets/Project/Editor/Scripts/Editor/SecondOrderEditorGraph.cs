@@ -9,8 +9,6 @@ public class SecondOrderEditorGraph
     private Vector3[] _lineVertices = new Vector3[2];
     private Vector3[] _curveVertices;
     
-    private List<LineColorPair> _linesX = new List<LineColorPair>();
-    private List<LineColorPair> _linesY = new List<LineColorPair>();
     private float _minX, _maxX, _minY, _maxY;
     private Rect _graphRect;
     
@@ -90,123 +88,79 @@ public class SecondOrderEditorGraph
 		}
 		
 		
-		// Evaluate the Second Order Dynamic Step Response
+		// Evaluate the Second Order Dynamics Step Response
 		int vertexCount = 0;
-		SecondOrderDynamics dynamicsBounds = new SecondOrderDynamics(frequency, dampingCoefficient, initialResponse, Vector3.zero);
-
-		Vector3 TargetPosition(int _vertexCount)
+		Vector2[] graphPosition = EvaluateSecondOrderDynamics(vertexCount, frequency, dampingCoefficient, initialResponse);
+		
+		// Add the evaluated points to the vertex buffer	
+		foreach(Vector2 position in graphPosition)
 		{
-			return new Vector3(RangeX * vertexCount / (_graphIterations - 1), 1f, 0f);
-			return new Vector3((RangeX / _graphIterations) * _vertexCount, 1f, 0f);
+			_curveVertices[vertexCount++] = UnitToGraphUnclamped(position.x, position.y);
 		}
-
-		
-		while (vertexCount < _graphIterations)
-		{
-			var targetPosition = TargetPosition(vertexCount);
-			Vector3 xy = dynamicsBounds.UpdatePosition(Time.fixedDeltaTime * 0.1f, targetPosition, Vector3.zero);
-			var y = xy.y;
-			
-			if (y < _minY) {
-				_minY = y;
-			} else if (y > _maxY) {
-				_maxY = y;
-			}
-
-			vertexCount++;
-		}
-		
-		vertexCount = 0;
-		SecondOrderDynamics dynamicsDrawn = new SecondOrderDynamics(frequency, dampingCoefficient, initialResponse, Vector3.zero);
-		
-		while (vertexCount < _graphIterations) {
-			
-			var targetPosition = TargetPosition(vertexCount);
-			// Debug.Log("Before: " + targetPosition);
-			Vector3 xy = dynamicsDrawn.UpdatePosition(Time.fixedDeltaTime * 0.1f, targetPosition, Vector3.zero);
-			// Debug.Log("After: " + xy);
-			var x = xy.x;
-			var y = xy.y;
-			
-			_curveVertices[vertexCount++] = UnitToGraphUnclamped(x, y);
-			
-		}
-		
 
 		// Draw the Background of the Graph
 		DrawRect(_minX, _minY, _maxX, _maxY, _graphColors.background, _graphColors.outline);
-		
-		/*
-		// Vertical helper lines
-		if (GridLinesX > 0)
-		{
-			float multiplier = 1;
-			while ((rangeX / (GridLinesX * multiplier)) > (rect.width / 2f))
-				multiplier *= 2;
-
-			for (float x = minX; x <= maxX; x += GridLinesX * multiplier) {
-				
-				DrawLine(x, minY, x, maxY, Colors.GridLine, 1);
-				
-				if (x == 0) { continue;}
-				
-				// Get Label position relative to the graph and offset it to be left of the line
-				Vector3 labelPosition = UnitToGraphUnlocked(x, minY);
-				labelPosition.y += 10f;
-				labelPosition.x -= 7.5f;
-			
-				// Draw the label
-				Handles.Label(labelPosition, x.ToString());
-			}
-		}
-		// Horizontal helper lines
-		if (GridLinesY > 0)
-		{
-			float multiplier = 1;
-			while ((rangeY / (GridLinesY * multiplier)) > (rect.height / 2f))
-				multiplier *= 2;
-
-			for (float y = minY; y <= maxY; y += GridLinesY * multiplier)
-				DrawLine(minX, y, maxX, y, Colors.GridLine, 1);
-		}
 
 		// Vertical lines
-		foreach (var line in linesX)
-		{
-			DrawLine(line.Position, minY, line.Position, maxY, line.Color, 2);
-		}
+		DrawLine(0, _minY, 0, _maxY, _graphColors.customLine, 2);
+		
 		// Horizontal lines
-		foreach (var line in linesY)
-		{
-			// Draw the horizontal line
-			DrawLine(minX, line.Position, maxX, line.Position, line.Color, 2);
-			
-			// Get Label position relative to the graph and offset it to be left of the line
-			Vector3 labelPosition = UnitToGraphUnlocked(minX, line.Position);
-			labelPosition.x -= 15f;
-			
-			// Draw the label
-			Handles.Label(labelPosition, line.Position.ToString());
-		}
-		*/
+		DrawLine(_minX, 0, _maxX, 0, _graphColors.customLine, 2);
+		DrawLine(_minX, 1, _maxX, 1, Color.green, 2);
 		
-		
+		// Draw the labels for the X axis
+		Vector3 labelPosition = UnitToGraphUnclamped(_minX, 0) - new Vector3(15f, 0f, 0f);
+		Handles.Label(labelPosition, "0");
+		labelPosition = UnitToGraphUnclamped(_minX, 1) - new Vector3(15f, 0f, 0f);
+		Handles.Label(labelPosition, "1");
+
+		// Draw the Curve
 		if (vertexCount > 1)
 		{
 			Handles.color = _graphColors.function;
 			Handles.DrawAAPolyLine(2.0f, vertexCount, _curveVertices);
 		}
-		
-		
 	}
-    /*
-    private Vector2 EvaluateSecondOrderDynamics(SecondOrderDynamics dynamics, float frequency, float dampingCoefficient, float initialResponse)
+    
+    private Vector2[] EvaluateSecondOrderDynamics(int vertexCount, float frequency, float dampingCoefficient, float initialResponse)
 	{
-		//Vector3 targetPosition = new Vector3(RangeX * vertexCount / (_graphIterations - 1), 1f, 0);
-		//Vector3 xy = dynamics.UpdatePosition(Time.fixedDeltaTime / (_graphIterations / 100), targetPosition, Vector3.zero);
-		//return 
+		Vector2[] graphPositions = new Vector2[_graphIterations];
+
+		for(int i = 0; i < 2; i++)
+		{
+			vertexCount = 0;
+			SecondOrderDynamics dynamics = new SecondOrderDynamics(frequency, dampingCoefficient, initialResponse, Vector3.zero);
+
+			while (vertexCount < _graphIterations)
+			{
+				// Evaluate the dynamics
+				Vector3 targetPosition = new Vector3(0f, 1f, 0f);
+				float y = dynamics.UpdatePosition(Time.fixedDeltaTime * 0.1f, targetPosition, Vector3.zero).y;
+				float x = (RangeX / _graphIterations) * vertexCount;
+			
+				// Adjust the graph scale so that the curves fit within the graph
+				if (i == 0)
+				{
+					if (y < _minY)
+					{
+						_minY = y;
+					}
+					else if (y > _maxY)
+					{
+						_maxY = y;
+					}
+				}
+				
+				// Add the evaluated point to the graph position array
+				if(i == 1) { graphPositions[vertexCount] = new Vector2(x, y); }
+
+				vertexCount++;
+			}
+		}
+		
+		return graphPositions;
 	}
-    */
+    
     private Vector3 UnitToGraph(float x, float y)
     {
 	    x = Mathf.Lerp(_graphRect.x, _graphRect.xMax, (x - _minX) / RangeX);
@@ -221,6 +175,14 @@ public class SecondOrderEditorGraph
 	    y = Mathf.LerpUnclamped(_graphRect.yMax, _graphRect.y, (y - _minY) / RangeY);
 
 	    return new Vector3(x, y, 0);
+    }
+    
+    void DrawLine(float x1, float y1, float x2, float y2, Color color, float width)
+    {
+	    _lineVertices[0] = UnitToGraph(x1, y1);
+	    _lineVertices[1] = UnitToGraph(x2, y2);
+	    Handles.color = color;
+	    Handles.DrawAAPolyLine(width, _lineVertices);
     }
     
     private void DrawRect(float x1, float y1, float x2, float y2, Color fill, Color line)
