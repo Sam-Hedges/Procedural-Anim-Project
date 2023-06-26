@@ -5,7 +5,7 @@ using UnityEngine;
 
 public class ProceduralAnimation : MonoBehaviour
 {
-    
+    [SerializeField] private bool GizmosEnabled = true;
     [SerializeField] private float stepDistance = 0.1f;
     [SerializeField] private float stepHeight = 0.1f;
     [SerializeField] private AnimationCurve stepCurveVertical;
@@ -147,6 +147,8 @@ public class ProceduralAnimation : MonoBehaviour
     
     private void OnDrawGizmos()
     {
+        if (!GizmosEnabled) return;
+        
         CheckTransformArray();
 
         foreach (var foot in feet)
