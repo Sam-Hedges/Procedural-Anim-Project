@@ -1,7 +1,8 @@
 using UnityEditor;
 using UnityEngine;
 
-[CustomEditor(typeof(ProceduralAnimation))]
+//[CustomEditor(typeof(ProceduralAnimation))]
+[CustomEditor(typeof(ProceduralMultiLegController))]
 public class ProceduralAnimationEditor : Editor
 {
     private SerializedProperty _frequency;
