@@ -34,10 +34,17 @@ public class ProceduralMultiLegController : MonoBehaviour
             PreviousPosition = Position;
         }
     }
-
-    [SerializeField] private Transform rootTransform;
-    private Vector3 worldUp;
     
+    [SerializeField] private LayerMask groundLayer;
+    [SerializeField] private float raycastRange = 1f;
+    
+    // Introduced a variable to control the stepping overlap
+    [SerializeField] private float stepOverlap = 0.2f;
+
+    // Body control variables
+    private Vector3 bodyPosition;
+    private Vector3 bodyRotation;
+
     // NonReorderable is a custom attribute to prevent reordering in the inspector
     // It's used in this case to prevent a nested-class array, overlapping-inspector bug
     [SerializeField] [NonReorderable] private Foot[] feet;
@@ -45,8 +52,7 @@ public class ProceduralMultiLegController : MonoBehaviour
     [Range(0, 15)] public float frequency = 1f;
     [Range(0, 5)] public float dampingCoefficient = 0.5f;
     [Range(-5, 5)] public float initialResponse = 2f;
-
-    private float raycastRange = 1f;
+    
     private Vector3 lastBodyUp;
     private bool[] legMoving;
     private int nbLegs;
@@ -70,37 +76,70 @@ public class ProceduralMultiLegController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        AdjustTargetPositions();
         DriveLegs();
+        PositionBody();
     }
     
-    private void DriveLegs()
+    private void AdjustTargetPositions()
     {
         foreach (var foot in feet)
         {
-            if (foot.isStepping) continue;
+            RaycastHit hit;
+            if (Physics.Raycast(foot.targetTransform.position, Vector3.down, out hit, raycastRange, groundLayer))
+            {
+                foot.targetTransform.position = hit.point;
+            }
+        }
+    }
+
+    
+    private void DriveLegs()
+    {
+        // Introduce a variable to count how many feet are on the ground
+        int feetOnGroundCount = 0;
+        foreach (var foot in feet)
+        {
+            if (!foot.isStepping) feetOnGroundCount++;
+        }
+
+        foreach (var foot in feet)
+        {
+            // Only allow a foot to lift if there will still be at least 2 feet on the ground
+            if (foot.isStepping || feetOnGroundCount <= 2) continue;
             
-            // Introduced Variables to reduce the amount of calls to the transform
             Vector3 targetPosition = foot.TargetPosition;
             Vector3 footPosition = foot.Position;
             Vector3 legPosition = foot.LegPosition;
-            
-            // Calculate the distance between foot and target
+
             float footToTargetDistance = Vector3.Distance(footPosition, targetPosition);
             float legStretchDistance = Vector3.Distance(footPosition, legPosition);
 
             if (footToTargetDistance > stepDistance || legStretchDistance > maxLegStretchDistance || legStretchDistance < minLegStretchDistance)
             {
-                // foot.PreviousPosition = targetPosition;
-                // foot.footTransform.position = Vector3.Lerp(footPosition, targetPosition, stepCurveVertical.Evaluate(foot.stepProgress));
-                // foot.stepProgress += Time.deltaTime / stepDuration;
-
                 StartCoroutine(PerformStep(foot, targetPosition));
-            } else
+                feetOnGroundCount--;
+            }
+            else
             {
                 foot.footTransform.position = foot.PreviousPosition;
                 foot.stepProgress = 0f;
             }
         }
+    }
+    
+    private void PositionBody()
+    {
+        // Compute average position and rotation
+        Vector3 avgPos = Vector3.zero;
+        foreach (var foot in feet)
+        {
+            avgPos += foot.Position;
+        }
+        avgPos /= feet.Length;
+
+        // Apply to body
+        transform.position = avgPos;
     }
     
     private IEnumerator PerformStep(Foot foot, Vector3 targetPosition)
