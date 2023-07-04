@@ -13,6 +13,7 @@ public class ProceduralMultiLegController : MonoBehaviour
     [SerializeField] private float stepDuration = 0.5f;
     [SerializeField] private float minLegStretchDistance = 0.1f;
     [SerializeField] private float maxLegStretchDistance = 0.5f;
+    [SerializeField] private LayerMask groundLayer;
 
     [Serializable] 
     private class Foot
@@ -20,6 +21,11 @@ public class ProceduralMultiLegController : MonoBehaviour
         public Transform rootLegTransform;
         public Transform footTransform;
         public Transform targetTransform;
+        
+        public float stepWindow = 1f; // New field
+        public float stepDelayOffset = 0f; // New field
+        internal float lastStepTime = 0f; // New field
+        
         internal Vector3 Position => footTransform.position;
         internal Vector3 LegPosition => rootLegTransform.position;
         internal Vector3 PreviousPosition;
@@ -35,16 +41,8 @@ public class ProceduralMultiLegController : MonoBehaviour
         }
     }
     
-    [SerializeField] private LayerMask groundLayer;
-    [SerializeField] private float raycastRange = 1f;
+    private Vector3 worldUp;
     
-    // Introduced a variable to control the stepping overlap
-    [SerializeField] private float stepOverlap = 0.2f;
-
-    // Body control variables
-    private Vector3 bodyPosition;
-    private Vector3 bodyRotation;
-
     // NonReorderable is a custom attribute to prevent reordering in the inspector
     // It's used in this case to prevent a nested-class array, overlapping-inspector bug
     [SerializeField] [NonReorderable] private Foot[] feet;
@@ -52,11 +50,13 @@ public class ProceduralMultiLegController : MonoBehaviour
     [Range(0, 15)] public float frequency = 1f;
     [Range(0, 5)] public float dampingCoefficient = 0.5f;
     [Range(-5, 5)] public float initialResponse = 2f;
-    
+
+    private float raycastRange = 15f;
     private Vector3 lastBodyUp;
     private bool[] legMoving;
     private int nbLegs;
     
+    private Rigidbody parentRigidbody;
     private Vector3 velocity;
     private Vector3 lastVelocity;
     private Vector3 lastBodyPos;
@@ -72,74 +72,62 @@ public class ProceduralMultiLegController : MonoBehaviour
             foot.PreviousPosition = foot.Position;
             foot.dynamics = new SecondOrderDynamics(frequency, dampingCoefficient, initialResponse, foot.Position);
         }
+            
+        parentRigidbody = GetComponentInParent<Rigidbody>();
     }
 
     private void FixedUpdate()
     {
-        AdjustTargetPositions();
+        RaycastIKTargets();
         DriveLegs();
-        PositionBody();
     }
-    
-    private void AdjustTargetPositions()
+
+    private void RaycastIKTargets()
     {
         foreach (var foot in feet)
         {
-            RaycastHit hit;
-            if (Physics.Raycast(foot.targetTransform.position, Vector3.down, out hit, raycastRange, groundLayer))
+            // Check for ground and adjust foot target if needed
+            Ray groundRay = new Ray(foot.TargetPosition + Vector3.up * 7f, Vector3.down);
+            if (Physics.Raycast(groundRay, out RaycastHit hit, raycastRange, groundLayer))
             {
-                foot.targetTransform.position = hit.point;
+                foot.footTransform.position = hit.point;
+                foot.footTransform.rotation = Quaternion.LookRotation(foot.footTransform.forward, hit.normal);
             }
         }
     }
-
     
     private void DriveLegs()
     {
-        // Introduce a variable to count how many feet are on the ground
-        int feetOnGroundCount = 0;
         foreach (var foot in feet)
         {
-            if (!foot.isStepping) feetOnGroundCount++;
-        }
-
-        foreach (var foot in feet)
-        {
-            // Only allow a foot to lift if there will still be at least 2 feet on the ground
-            if (foot.isStepping || feetOnGroundCount <= 2) continue;
-            
+            // Introduced Variables to reduce the amount of calls to the transform
             Vector3 targetPosition = foot.TargetPosition;
             Vector3 footPosition = foot.Position;
             Vector3 legPosition = foot.LegPosition;
 
+            // Calculate the distance between foot and target
             float footToTargetDistance = Vector3.Distance(footPosition, targetPosition);
             float legStretchDistance = Vector3.Distance(footPosition, legPosition);
 
+            if (foot.isStepping) continue;
+
+            float currentStepWindow = foot.stepWindow * (1f / (1f + parentRigidbody.velocity.magnitude)); // Adjust step window based on velocity
+
             if (footToTargetDistance > stepDistance || legStretchDistance > maxLegStretchDistance || legStretchDistance < minLegStretchDistance)
             {
-                StartCoroutine(PerformStep(foot, targetPosition));
-                feetOnGroundCount--;
-            }
-            else
+                // Only move if the step window has passed since the last step for this foot
+                if (Time.time - foot.lastStepTime > currentStepWindow + foot.stepDelayOffset)
+                {
+                    foot.lastStepTime = Time.time;
+                    StartCoroutine(PerformStep(foot, targetPosition));
+                }
+            } 
+            else 
             {
                 foot.footTransform.position = foot.PreviousPosition;
                 foot.stepProgress = 0f;
             }
         }
-    }
-    
-    private void PositionBody()
-    {
-        // Compute average position and rotation
-        Vector3 avgPos = Vector3.zero;
-        foreach (var foot in feet)
-        {
-            avgPos += foot.Position;
-        }
-        avgPos /= feet.Length;
-
-        // Apply to body
-        transform.position = avgPos;
     }
     
     private IEnumerator PerformStep(Foot foot, Vector3 targetPosition)
@@ -199,7 +187,7 @@ public class ProceduralMultiLegController : MonoBehaviour
             
             // Draw the target position and it's size
             Gizmos.color = Color.white;
-            Gizmos.DrawWireSphere(targetPosition, stepDistance);
+            DrawGizmoRing(targetPosition, stepDistance, foot.footTransform.up);
 
             Gizmos.color = Color.blue;
             Gizmos.DrawLine(footPosition, footPosition + Vector3.up * stepHeight);
@@ -246,6 +234,39 @@ public class ProceduralMultiLegController : MonoBehaviour
             Gizmos.color = Color.blue;
             Gizmos.DrawRay(legPosition, (footPosition - legPosition).normalized * minLegStretchDistance);
         }
+    }
+    
+    private void DrawGizmoRing(Vector3 center, float radius, Vector3 normal, int resolution = 30)
+    {
+        Vector3 lastPoint = center + radius * CalculateTangent(normal);
+        Vector3 nextPoint = Vector3.zero;
+
+        for (var i = 1; i <= resolution; i++)
+        {
+            float angle = 2.0f * Mathf.PI * i / resolution;
+            Vector3 direction = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
+            Vector3 tangent = CalculateTangent(normal);
+            Quaternion rotation = Quaternion.AngleAxis(angle * Mathf.Rad2Deg, normal);
+            nextPoint = center + radius * (rotation * tangent);
+
+            Gizmos.DrawLine(lastPoint, nextPoint);
+            lastPoint = nextPoint;
+        }
+    }
+    
+    public static Vector3 CalculateTangent(Vector3 normal)
+    {
+        Vector3 tangent;
+        // Check if your normal is not Vector3.up or its opposite.
+        if (Mathf.Abs(Vector3.Dot(normal, Vector3.up)) < 0.99f)
+        {
+            tangent = Vector3.Cross(normal, Vector3.up).normalized;
+        }
+        else
+        {
+            tangent = Vector3.Cross(normal, Vector3.right).normalized;
+        }
+        return tangent;
     }
     
     /// <summary>

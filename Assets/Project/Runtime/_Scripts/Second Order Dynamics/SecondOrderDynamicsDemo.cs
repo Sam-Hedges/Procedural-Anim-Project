@@ -7,9 +7,9 @@ using UnityEngine;
 public class SecondOrderDynamicsDemo : MonoBehaviour
 {
     public Transform target;
-    public float frequency = 1;
-    public float dampingCoefficient;
-    public float initialResponse;
+    [Range(0, 15)] public float frequency = 1f;
+    [Range(0, 5)] public float dampingCoefficient = 0.5f;
+    [Range(-5, 5)] public float initialResponse = 2f;
 
     private Vector3 xp; // previous input
     private Vector3 y, yd; // state variables
